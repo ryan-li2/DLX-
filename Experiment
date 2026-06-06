@@ -22,13 +22,12 @@ N_max=60
 R=range(4)
 Gurobi_SOL=pd.DataFrame(columns=['Instance','User','Simulation','Solver','Computation Time(s)','Total Allocated Demand'])
 OR_TOOLS_SOL=pd.DataFrame(columns=['Instance','User','Simulation','Solver','Computation Time(s)','Total Allocated Demand'])
-for z in [4]:
-    for INS in [500]:
+for z in [4,8,12]:#4:Realistic, 8:Random, 12:Clustered
+    for INS in [500,1000,2500,5000]:#Number of users
         Data=pd.read_excel('/Data/User Data/Instance_'+str(z)+'.xlsx')
         data=Data.iloc[:INS].copy()
-        
-        for h in range(20):      
-            beams=pd.read_csv('IJCAI_DATA/Beams_'+str(z)+'_'+str(INS)+'_60_4_sample'+str(h)+'.csv',index_col=0)
+        for h in range(20): #problems     
+            beams=pd.read_csv('/Data/Beam Candidate/Beams_'+str(z)+'_'+str(INS)+'_60_4_sample'+str(h)+'.csv',index_col=0)
             f = open('IJCAI_DATA/Allocate_'+str(z)+'_'+str(INS)+'_60_4_sample'+str(h)+'.txt','r')
             allocate_data=f.read()
             f.close()
