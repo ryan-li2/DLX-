@@ -1,14 +1,4 @@
-import numpy as np
-import pandas as pd
-import timeit
-import copy
-import time
-from collections import defaultdict
-import itertools
-import os
-from joblib import Parallel, delayed
-import json
-import networkx as nx
+
 
 class Node:
     def __init__(self):
@@ -562,8 +552,7 @@ def gurobi_SPK(rows_color,D_color,N,Cons):
     
     return integer,model.objVal,model.Runtime
 
-from ortools.sat.python import cp_model
-import time
+
 
 def cpsat_SPK(rows_color,D_color,N,Cons,log=True):
     
@@ -599,3 +588,5 @@ def cpsat_SPK(rows_color,D_color,N,Cons,log=True):
  
 
     return integer, solver.ObjectiveValue(), runtime
+
+
