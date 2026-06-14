@@ -341,41 +341,47 @@ def cumulative_analysis(max_i, records, percentiles):
     """
     Analyse cumulative results up to index max_i.
 
-    For each percentile, this function keeps:
-    - the largest observed running time,
-    - the largest observed objective value.
-
-    It then returns:
-    1. the best solution among the fastest records,
-    2. the fastest solution among the best-value records.
+    For each percentile, keep:
+    - maximum running time across threads,
+    - maximum objective value across threads.
     """
-    # Store the best cumulative time and value for each percentile.
-    per_p = defaultdict(lambda: {"time": 0, "value": 0})
-    # Process records only up to max_i.
-    for i, (time_dict, value_dict) in enumerate(records):
-        if i <= max_i:
-            for p in percentiles:
-                if p in time_dict:
-                    # Keep the maximum time observed for percentile p.
-                    if time_dict[p] > per_p[p]["time"]:
-                        per_p[p]["time"] = time_dict[p]
-                    # Keep the maximum value observed for percentile p.
-                    if value_dict[p] > per_p[p]["value"]:
-                        per_p[p]["value"] = value_dict[p]
-    # Convert the dictionary into a list of valid percentile records.
-    aggregated = [{"p": p, "time": v["time"], "value": v["value"]} for p, v in per_p.items() if v["time"]>0]
+
+    per_p = {
+        p: {"time": 0.0, "value": 0}
+        for p in percentiles
+    }
+
+    for i, (time_list, value_list) in enumerate(records):
+        if i > max_i:
+            break
+
+        for p in percentiles:
+            if time_list[p] > per_p[p]["time"]:
+                per_p[p]["time"] = time_list[p]
+
+            if value_list[p] > per_p[p]["value"]:
+                per_p[p]["value"] = value_list[p]
+
+    aggregated = [
+        {"p": p, "time": v["time"], "value": v["value"]}
+        for p, v in per_p.items()
+        if v["time"] > 0
+    ]
+
     if not aggregated:
         return None, None
 
-    # Among the fastest records, choose the one with the largest value.
     fastest_time = min(r["time"] for r in aggregated)
-    fastest_time_records = [r for r in aggregated if r["time"] == fastest_time]
-    best_of_fastest = max(fastest_time_records, key=lambda r: r["value"])
+    best_of_fastest = max(
+        (r for r in aggregated if r["time"] == fastest_time),
+        key=lambda r: r["value"]
+    )
 
-    # Among the best-value records, choose the one with the smallest time.
     best_value = max(r["value"] for r in aggregated)
-    best_value_records = [r for r in aggregated if r["value"] == best_value]
-    fastest_of_best = min(best_value_records, key=lambda r: r["time"])
+    fastest_of_best = min(
+        (r for r in aggregated if r["value"] == best_value),
+        key=lambda r: r["time"]
+    )
 
     return best_of_fastest, fastest_of_best
 
@@ -446,63 +452,48 @@ def input_structure(beams,allocate,data,pairs,percentiles):
             u += 1
     return rows_color, orig_row, pos, D_color,u,adj,cum_demands,back
 
-def run_single_i(i, rows_color, D_color, orig_row, back, LB, N_max, u, t,
-                 thread_time, thread_result):
+def run_single_i(i, rows_color, D_color, orig_row, back, LB, N_max, u, t, n_colour=4):
     """
     Run DLX+ for one starting index i across all percentile settings.
-
-    For each percentile, the function:
-    - sets the starting row position,
-    - adjusts the backtracking depth,
-    - runs DLX+ if the depth is positive,
-    - records the total time,
-    - records the best objective value found.
+    Returns local time/result dictionaries.
     """
 
-    # Run DLX+ separately for each percentile.
-    for p, node in enumerate(back):
-        t_start2 = timeit.default_timer()
-        # Each vertex contributes four colour rows.
-        begin = i * 4
+    begin = i * n_colour
 
-        # Adjust the remaining backtracking depth.
-        node -= i * 4
+    # Slice once only
+    rows_i = rows_color[begin:]
+    orig_i = orig_row[begin:]
+    D_i = D_color[begin:]
 
-        # Initialise the best objective value.
-        best = LB
+    local_time = [0.0] * len(back)
+    local_result = [LB] * len(back)
 
-        # Run DLX+ only if there are remaining nodes to explore.
+    best = LB
+
+    for p, node0 in enumerate(back):
+        node = node0 - begin
+
+        t_start = timeit.default_timer()
+
         if node > 0:
             solver = DLX(
                 u + 1,
-                rows_color[begin:],
-                orig_row[begin:],
-                D_color[begin:],
+                rows_i,
+                orig_i,
+                D_i,
                 LB,
                 N_max,
                 node
             )
 
-
-            for integer, obj in solver.search_range():
+            for _, obj in solver.search_range():
                 if obj > best:
                     best = obj
-                    optimal = integer.copy()
 
-        t2 = timeit.default_timer() - t_start2
+        local_time[p] = t + (timeit.default_timer() - t_start)
+        local_result[p] = best
 
-        # Add preprocessing time and DLX+ running time.
-        D_time = t + t2
-
-        # Store the largest running time for this percentile.
-        if D_time > thread_time[p]:
-            thread_time[p] = D_time
-
-        # Store the best objective value for this percentile.
-        if best > thread_result[p]:
-            thread_result[p] = best
-
-    return thread_time, thread_result
+    return local_time, local_result
 
 def greedy_solution(rows_color,orig_row,pos,D_color,N_max,adj):
     H = set()

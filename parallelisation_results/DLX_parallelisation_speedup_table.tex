@@ -1,0 +1,27 @@
+\begin{table}[ht]
+\centering
+\caption{Speedup of DLX$^+$ v1 relative to Gurobi across different thread counts, averaged over 20 instances for each problem type.}
+\label{tab:dlx_parallelisation_speedup}
+\begin{tabular}{lrrrr}
+\toprule
+& \multicolumn{4}{c}{Threads} \\
+\cmidrule(lr){2-5}
+INS & 1 & 5 & 10 & 20 \\
+\midrule
+Realistic-500 & 52.30 & 56.58 & 45.83 & 26.17 \\
+Realistic-1000 & 45.49 & 37.61 & 23.13 & 11.44 \\
+Realistic-2500 & 53.68 & 43.18 & 27.33 & 13.63 \\
+Realistic-5000 & 190.38 & 176.12 & 114.34 & 57.52 \\
+\midrule
+Random-500 & 45.69 & 39.37 & 29.36 & 18.29 \\
+Random-1000 & 33.55 & 31.07 & 20.16 & 10.21 \\
+Random-2500 & 31.99 & 29.54 & 18.77 & 10.30 \\
+Random-5000 & 36.36 & 33.56 & 18.98 & 9.74 \\
+\midrule
+Cluster-500 & 59.28 & 41.60 & 24.38 & 10.01 \\
+Cluster-1000 & 98.11 & 63.87 & 39.73 & 16.97 \\
+Cluster-2500 & 330.76 & 227.20 & 142.15 & 55.59 \\
+Cluster-5000 & 4866.17 & 3032.82 & 2001.35 & 761.68 \\
+\bottomrule
+\end{tabular}
+\end{table}

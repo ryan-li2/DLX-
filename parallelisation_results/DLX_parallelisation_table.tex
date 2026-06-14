@@ -1,0 +1,27 @@
+\begin{table}[ht]
+\centering
+\caption{Optimality gap of DLX$^+$ v1 across different thread counts (in \%), averaged over 20 instances for each problem type.}
+\label{tab:dlx_parallelisation}
+\begin{tabular}{lrrrr}
+\toprule
+& \multicolumn{4}{c}{Threads} \\
+\cmidrule(lr){2-5}
+INS & 1 & 5 & 10 & 20 \\
+\midrule
+Realistic-500 & 1.53 & 1.53 & 1.53 & 1.53 \\
+Realistic-1000 & 3.09 & 2.85 & 2.81 & 2.81 \\
+Realistic-2500 & 4.01 & 3.55 & 3.50 & 3.46 \\
+Realistic-5000 & 5.32 & 4.61 & 4.51 & 4.49 \\
+\midrule
+Random-500 & 1.04 & 0.94 & 0.94 & 0.94 \\
+Random-1000 & 0.98 & 0.90 & 0.89 & 0.89 \\
+Random-2500 & 1.47 & 1.39 & 1.38 & 1.38 \\
+Random-5000 & 1.25 & 1.12 & 1.11 & 1.11 \\
+\midrule
+Clustered-500 & 2.78 & 2.05 & 1.97 & 1.70 \\
+Clustered-1000 & 4.82 & 2.81 & 2.27 & 2.07 \\
+Clustered-2500 & 8.46 & 7.15 & 6.24 & 5.86 \\
+Clustered-5000 & 11.14 & 9.53 & 9.26 & 8.95 \\
+\bottomrule
+\end{tabular}
+\end{table}
