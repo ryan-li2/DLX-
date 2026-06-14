@@ -3,6 +3,9 @@
 This appendix describes the datasets included with the DLX+ experiments and
 the file conventions used by the Python and C++ implementations.
 
+The corresponding solver, experiment, and analysis workflow is indexed in
+[CODE_APPENDIX.md](CODE_APPENDIX.md).
+
 ## Experimental Design
 
 The repository contains 240 CC-MWIS problem instances:

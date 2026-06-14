@@ -35,6 +35,9 @@ Data/
 See [DATA_APPENDIX.md](DATA_APPENDIX.md) for the complete experimental design,
 file schemas, and problem-identification conventions.
 
+See [CODE_APPENDIX.md](CODE_APPENDIX.md) for the paper-to-code map, complete
+experiment workflow, notebook cell index, outputs, and timing conventions.
+
 ## Build
 
 Build the standalone DLX+ solver:
