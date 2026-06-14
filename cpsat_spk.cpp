@@ -10,6 +10,11 @@
 #include "ortools/sat/cp_model_solver.h"
 #include "ortools/sat/sat_parameters.pb.h"
 
+/*
+Paper reference: Experimental Setup - Baselines and "Weighted Max-Sat
+Formulation". This file implements the OR-Tools CP-SAT comparison model.
+*/
+
 CpSatResult cpsat_SPK(
     const std::vector<std::vector<int>>& rows_color,
     const std::vector<double>& D_color,
@@ -45,6 +50,7 @@ CpSatResult cpsat_SPK(
             "x[" + std::to_string(row) + "]"));
     }
 
+    // Each DLX coverage/conflict column becomes an at-most-one constraint.
     for (const auto& constraint : Cons) {
         LinearExpr expression;
         for (int row : constraint) {
@@ -64,6 +70,7 @@ CpSatResult cpsat_SPK(
         objective +=
             static_cast<std::int64_t>(D_color[row]) * x[row];
     }
+    // Paper model: select at most N rows and maximise allocated demand.
     builder.AddLessOrEqual(cardinality, N);
     builder.Maximize(objective);
 
@@ -77,6 +84,7 @@ CpSatResult cpsat_SPK(
     Model model;
     model.Add(NewSatParameters(parameters));
 
+    // Measure the native CP-SAT solve used in the reported solver runtimes.
     const auto start = std::chrono::steady_clock::now();
     const CpSolverResponse response =
         SolveCpModel(builder.Build(), &model);

@@ -8,8 +8,15 @@
 
 #include "gurobi_c++.h"
 
+/*
+Paper implementation references:
+  - gurobi_SPK implements Model 2 and "Time-Constrained Gurobi Runs".
+  - gurobi_LP supplies the relaxation for "LP-Guided Problem Reduction".
+*/
+
 std::vector<std::vector<int>> incidence_transpose_fast(
     const std::vector<std::vector<int>>& rows_color) {
+    // Transpose DLX rows into one at-most-one constraint per matrix column.
     int maximum_column = -1;
     for (const auto& row : rows_color) {
         for (int column : row) {
@@ -36,6 +43,8 @@ GurobiResult gurobi_SPK(
     int N,
     const std::vector<std::vector<int>>& Cons,
     double time_limit_seconds) {
+    // Paper reference: Model 2 in "DLX+: A DLX Extension for CC-MWIS".
+    // One binary variable represents each beam-colour row.
     if (rows_color.size() != D_color.size()) {
         throw std::invalid_argument(
             "rows_color and D_color must have the same size");
@@ -64,6 +73,7 @@ GurobiResult gurobi_SPK(
             "x[" + std::to_string(row) + "]"));
     }
 
+    // DLX columns become set-packing constraints over incompatible rows.
     for (int constraint = 0;
          constraint < static_cast<int>(Cons.size());
          ++constraint) {
@@ -86,6 +96,7 @@ GurobiResult gurobi_SPK(
         cardinality += x[row];
         objective += D_color[row] * x[row];
     }
+    // Add the paper's cardinality constraint and allocated-demand objective.
     model.addConstr(cardinality <= N, "cardinality");
     model.setObjective(objective, GRB_MAXIMIZE);
     model.optimize();
@@ -114,6 +125,8 @@ GurobiLpResult gurobi_LP(
     int N,
     const std::vector<std::vector<int>>& Cons,
     double time_limit_seconds) {
+    // Paper reference: "LP-Guided Problem Reduction". Relax each binary
+    // variable to the continuous interval [0, 1].
     const auto start = std::chrono::steady_clock::now();
     if (rows_color.size() != D_color.size()) {
         throw std::invalid_argument(
@@ -156,6 +169,8 @@ GurobiLpResult gurobi_LP(
     GurobiLpResult result;
     if (model.get(GRB_IntAttr_SolCount) > 0) {
         result.objective = model.get(GRB_DoubleAttr_ObjVal);
+        // Integral-one rows are fixed by DLX+:LP Boost; positive fractional
+        // rows indicate that residual DLX+ search remains necessary.
         for (int row = 0; row < variable_count; ++row) {
             const double value =
                 std::round(x[row].get(GRB_DoubleAttr_X) * 100.0) / 100.0;

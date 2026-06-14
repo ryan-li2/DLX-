@@ -9,6 +9,7 @@ struct CpSatResult {
     bool has_solution = false;
 };
 
+// Paper reference: Experimental Setup - Baselines (OR-Tools CP-SAT).
 CpSatResult cpsat_SPK(
     const std::vector<std::vector<int>>& rows_color,
     const std::vector<double>& D_color,

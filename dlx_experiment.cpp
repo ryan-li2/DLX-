@@ -30,6 +30,21 @@
 #include "lightgbm_predict.hpp"
 #endif
 
+/*
+Implementation map to the manuscript:
+  - "DLX+: A DLX Extension for CC-MWIS": matrix construction and the search
+    procedures specified by Algorithms 1-3.
+  - "Bounding Strategies" and "Backtracking Strategies": pruning and truncated
+    search-depth control.
+  - "Machine Learning Backtracking" and "Feature Design": feature extraction
+    and conversion of a predicted percentile class into one search depth.
+  - "LP-Guided Problem Reduction": variable fixing and residual DLX+ search.
+  - "Parallelisation Strategies": decomposition across starting vertex rows.
+
+Subsection names are used instead of section numbers so these references remain
+valid if the manuscript is reordered.
+*/
+
 namespace fs = std::filesystem;
 using Clock = std::chrono::steady_clock;
 
@@ -307,6 +322,8 @@ static InputData build_input(const std::vector<double>& beam_demands,
                              const std::unordered_map<int, std::vector<int>>& allocations,
                              const std::vector<std::pair<int, int>>& pairs,
                              int user_count) {
+    // Paper reference: "DLX+: A DLX Extension for CC-MWIS" - Data Structure
+    // and Model 2. Convert coverage and colouring conflicts into DLX+ rows.
     const int beam_count = static_cast<int>(beam_demands.size());
     std::vector<std::vector<int>> beams_by_user(user_count);
     for (const auto& [beam, users] : allocations) {
@@ -329,6 +346,8 @@ static InputData build_input(const std::vector<double>& beam_demands,
         result.adjacency[right].insert(left);
     }
 
+    // Paper reference: "DLX+: A DLX Extension for CC-MWIS" - Data Structure.
+    // Sort rows by non-increasing weight to obtain strong incumbents early.
     std::vector<int> order(beam_count);
     std::iota(order.begin(), order.end(), 0);
     std::stable_sort(order.begin(), order.end(), [&](int left, int right) {
@@ -338,6 +357,8 @@ static InputData build_input(const std::vector<double>& beam_demands,
         result.sorted_position[order[index]] = index;
     }
 
+    // Paper reference: "Backtracking Strategies" - Backtracking. The seven
+    // depth limits are obtained from cumulative weight percentiles.
     std::vector<double> sorted_demands;
     sorted_demands.reserve(beam_count);
     for (int beam : order) {
@@ -360,6 +381,9 @@ static InputData build_input(const std::vector<double>& beam_demands,
         result.backtracking_depths.push_back(index * kColours + 1);
     }
 
+    // One row represents selecting one beam with one colour. Coverage columns
+    // prevent incompatible selections; colour-clique columns added below
+    // prevent adjacent selected beams from receiving the same colour.
     result.rows.reserve(beam_count * kColours);
     result.original_rows.reserve(beam_count * kColours);
     result.demands.reserve(beam_count * kColours);
@@ -406,6 +430,8 @@ static std::pair<double, double> mean_and_population_std(
 }
 
 static Features extract_features_FBO(const InputData& input) {
+    // Paper reference: "Machine Learning Backtracking" - Feature Design. These
+    // graph, demand, and DLX-matrix statistics form the LightGBM input.
     Features features;
     features.B = input.beam_count;
     features.U = input.column_count - 1;
@@ -565,6 +591,8 @@ class DLX {
     std::vector<int> best_solution_;
 
     void cover(Node* column) {
+        // Paper reference: Algorithm 1 (DLX+: Main Loop), CoverConstraints.
+        // Remove rows conflicting with the selected row from the active matrix.
         for (Node* row = column->down; row != column; row = row->down) {
             for (Node* node = row->right; node != row; node = node->right) {
                 node->down->up = node->up;
@@ -574,6 +602,7 @@ class DLX {
     }
 
     void uncover(Node* column) {
+        // Restore links in reverse traversal order during backtracking.
         for (Node* row = column->up; row != column; row = row->up) {
             for (Node* node = row->left; node != row; node = node->left) {
                 node->down->up = node;
@@ -583,6 +612,8 @@ class DLX {
     }
 
     double upper_bound(Node* node) const {
+        // Paper reference: "Bounding Strategies" and Algorithm 2, line 12.
+        // Add weights of distinct remaining vertices up to the size limit.
         double bound = demands_[node->row_id];
         int colour = node->row_header->colour;
         Node* row = node->row_header->down;
@@ -624,6 +655,8 @@ class DLX {
     }
 
     void search() {
+        // Paper reference: Algorithm 2 (Search). Continue only when the upper
+        // bound can improve the incumbent.
         Node* row = root_.down;
         if (row == &root_ || solution_size_ >= max_size_) {
             if (current_ > lower_bound_) {
@@ -651,6 +684,8 @@ class DLX {
     }
 
     void backtrack_next_node(Node* node) {
+        // Paper reference: Algorithm 3 (Backtracking). Examine the next row for
+        // a different vertex and prune it using the upper bound.
         const int colour = node->row_header->colour;
         Node* alternative = node->down;
         while (!alternative->is_column_header) {
@@ -668,6 +703,8 @@ class DLX {
     }
 
     void search_range() {
+        // Paper reference: Algorithm 1 and "Backtracking Strategies". Stop at
+        // backtrack_nodes_ to control the runtime-quality trade-off.
         Node* row = root_.down;
         if (row == &root_) {
             return;
@@ -767,6 +804,8 @@ class DLX {
 
 static std::pair<double, std::vector<int>> greedy_solution(
     const InputData& input) {
+    // Paper reference: "DLX+: A DLX Extension for CC-MWIS" - Data Structure.
+    // Build the greedy lower bound enabled by non-increasing row weights.
     std::unordered_set<int> used_constraints;
     std::unordered_set<int> selected_beams;
     std::unordered_map<int, int> beam_colours;
@@ -832,6 +871,8 @@ static WorkerResult run_worker(int worker, const InputData& input,
                                double lower_bound,
                                const std::vector<int>& greedy_integer,
                                int max_size = kNMax) {
+    // Paper reference: "Parallelisation Strategies". Thread i starts from the
+    // first colour row of vertex i and excludes all preceding rows.
     const int begin = worker * kColours;
     WorkerResult result;
     double best = lower_bound;
@@ -851,6 +892,7 @@ static WorkerResult run_worker(int worker, const InputData& input,
     std::vector<double> demands(input.demands.begin() + begin,
                                 input.demands.end());
 
+    // Evaluate seven depths sequentially per worker; workers run concurrently.
     for (std::size_t percentile = 0; percentile < kPercentiles.size();
          ++percentile) {
         const int depth = input.backtracking_depths[percentile] - begin;
@@ -882,6 +924,8 @@ static WorkerResult run_worker(int worker, const InputData& input,
 static std::pair<double, std::vector<int>> run_single_depth_worker(
     int worker, const InputData& input, int backtrack_depth,
     double lower_bound, const std::vector<int>& greedy_integer) {
+    // Paper reference: "Machine Learning Backtracking" - Learning Model.
+    // DLX+:ML evaluates only the depth selected by the seven-class classifier.
     const int begin = worker * kColours;
     if (begin >= static_cast<int>(input.rows.size())) {
         return {lower_bound, greedy_integer};
@@ -914,6 +958,8 @@ static std::pair<double, std::vector<int>> run_single_depth_worker(
 static int predicted_backtracking_depth(const InputData& input,
                                         int percentile_index,
                                         double lower_bound) {
+    // Paper reference: "Machine Learning Backtracking" - Learning Model.
+    // Convert the predicted percentile class to a cumulative-demand depth.
     if (percentile_index < 0 ||
         percentile_index >= static_cast<int>(kPercentiles.size())) {
         throw std::out_of_range(
@@ -965,6 +1011,9 @@ static void write_ml_result_json(
 #ifdef USE_GUROBI
 static InputData reduce_after_fixed_rows(
     const InputData& input, const std::vector<int>& fixed_rows) {
+    // Paper reference: "LP-Guided Problem Reduction", Step 1. Fix integral LP
+    // rows and remove every residual row sharing a covered DLX column. The
+    // surviving rows retain the original DLX+ sparse-matrix structure.
     std::unordered_set<int> covered_columns;
     std::unordered_set<int> fixed(fixed_rows.begin(), fixed_rows.end());
     for (int row : fixed_rows) {
@@ -995,6 +1044,8 @@ static InputData reduce_after_fixed_rows(
         }
     }
 
+    // Paper reference: "LP-Guided Problem Reduction", Step 2. Preserve the
+    // residual order and recompute percentile depths on the reduced matrix.
     std::vector<double> demand_structure;
     std::vector<int> row_start;
     int last_beam = -1;
@@ -1055,6 +1106,8 @@ static void write_lp_result_json(
 
 static Summary cumulative_analysis(
     const std::vector<WorkerResult>& records) {
+    // Paper reference: Experimental Setup - Methods. Report the best objective
+    // across depths and its corresponding parallel execution time.
     std::array<Summary, kPercentiles.size()> aggregated{};
     for (std::size_t percentile = 0; percentile < kPercentiles.size();
          ++percentile) {
@@ -1359,6 +1412,9 @@ int main(int argc, char** argv) {
 
 #ifdef USE_GUROBI
             if (lp_mode) {
+                // Paper reference: "LP-Guided Problem Reduction", Steps 1-3.
+                // fix integral rows, search the residual instance, and combine
+                // the fixed and residual objective values.
                 const auto constraints =
                     incidence_transpose_fast(input.rows);
                 const auto start = Clock::now();
@@ -1433,6 +1489,10 @@ int main(int argc, char** argv) {
             }
 
             if (ml_mode) {
+                // Paper reference: "Machine Learning Backtracking" and
+                // Experimental Setup - Settings for Machine Learning. Python
+                // supplies the predicted class; C++ times greedy construction
+                // and parallel DLX+ search at only the predicted depth.
                 const auto start = Clock::now();
                 const auto [lower_bound, greedy_integer] =
                     greedy_solution(input);
@@ -1514,6 +1574,8 @@ int main(int argc, char** argv) {
 
 #ifdef USE_GUROBI
             if (gurobi_mode) {
+                // Paper reference: "Time-Constrained Gurobi Runs". The caller
+                // passes the matching DLX+ runtime as solver_time_limit.
                 const auto constraints =
                     incidence_transpose_fast(input.rows);
                 const GurobiResult gurobi = gurobi_SPK(
@@ -1535,6 +1597,8 @@ int main(int argc, char** argv) {
 
 #ifdef USE_CPSAT
             if (cpsat_mode) {
+                // CP-SAT baseline uses the same CC-MWIS rows, objective, and
+                // cardinality limit as Gurobi and DLX+.
                 const auto constraints =
                     incidence_transpose(input.rows, input.column_count);
                 const CpSatResult cpsat = cpsat_SPK(
@@ -1554,6 +1618,8 @@ int main(int argc, char** argv) {
             }
 #endif
 
+            // Paper reference: Experimental Setup - Methods. Timed standalone
+            // DLX+ includes the greedy incumbent and all parallel searches.
             const auto results_start = Clock::now();
             const auto greedy_start = Clock::now();
             const auto [lower_bound, greedy_integer] =

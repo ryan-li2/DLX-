@@ -1,4 +1,9 @@
-"""Python data-loading interface for the compiled DLX+ C++ solver."""
+"""Python interface for the methods and experiments described in the paper.
+
+The algorithmic implementation is in ``dlx_experiment.cpp``. This module
+loads instances, invokes the requested native method, and normalises outputs
+for the paper's result tables.
+"""
 
 from ast import literal_eval
 from pathlib import Path
@@ -23,7 +28,12 @@ def run_exact_solvers_with_dlx_limits(
     dlx_results,
     output_dir=".",
 ):
-    """Run Gurobi and CP-SAT using each matching DLX+ computation time."""
+    """Reproduce the paper's matched-runtime exact-solver comparison.
+
+    Paper reference: ``Time-Constrained Gurobi Runs``. Each solver receives the
+    runtime of the matching DLX+ problem identified by
+    ``(Instance, User, Simulation)``.
+    """
     if isinstance(dlx_results, (str, Path)):
         dlx_results = pd.read_csv(dlx_results)
     else:
@@ -114,7 +124,7 @@ def extract_features_cpp(
     users=500,
     sample=0,
 ):
-    """Return the C++ equivalent of extract_features_FBO()."""
+    """Return features from ``Machine Learning Backtracking: Feature Design``."""
     if not _EXECUTABLE.exists():
         raise FileNotFoundError(
             f"DLX executable not found at {_EXECUTABLE}."
@@ -151,7 +161,11 @@ def solve_ml_depth(
     sample=0,
     threads=10,
 ):
-    """Run DLX+ at one ML-predicted backtracking percentile."""
+    """Run DLX+:ML from ``Machine Learning Backtracking``.
+
+    LightGBM predicts the class in Python; C++ builds the greedy incumbent and
+    searches only the corresponding backtracking depth.
+    """
     if predicted_percentile_index not in range(7):
         raise ValueError("predicted_percentile_index must be from 0 to 6")
 
@@ -229,7 +243,7 @@ def solve_cpsat(
     sample=0,
     time_limit=3600,
 ):
-    """Run the compiled C++ CP-SAT model and return its solution."""
+    """Run the paper's OR-Tools CP-SAT CC-MWIS baseline."""
     if not _CPSAT_EXECUTABLE.exists():
         raise FileNotFoundError(
             f"CP-SAT executable not found at {_CPSAT_EXECUTABLE}. "
@@ -286,7 +300,7 @@ def solve_gurobi(
     n_colour=4,
     time_limit=3600,
 ):
-    """Run the compiled C++ Gurobi model and return its solution."""
+    """Run the paper's Gurobi CC-MWIS baseline."""
     if not _GUROBI_EXECUTABLE.exists():
         raise FileNotFoundError(
             f"Gurobi executable not found at {_GUROBI_EXECUTABLE}. "
@@ -355,7 +369,11 @@ def solve_dlx_lp(
     sample=0,
     threads=10,
 ):
-    """Run the Gurobi LP-guided DLX+ solver in C++."""
+    """Run the method from ``LP-Guided Problem Reduction``.
+
+    C++ solves the LP, fixes integral rows, removes conflicts while preserving
+    the residual DLX+ structure, and searches the reduced problem.
+    """
     if not _GUROBI_EXECUTABLE.exists():
         raise FileNotFoundError(
             f"Gurobi executable not found at {_GUROBI_EXECUTABLE}."
@@ -390,7 +408,7 @@ def solve(
     n_colour=4,
     threads=10,
 ):
-    """Load one problem and return C++ input structures and worker results."""
+    """Run ``DLX+: A DLX Extension for CC-MWIS`` (Algorithms 1-3)."""
     data_dir = Path(data_dir).expanduser().resolve()
     colours = list(range(n_colour) if R is None else R)
     _validate_colours(colours, n_colour)
@@ -426,7 +444,7 @@ def run_all(
     n_colour=4,
     threads=10,
 ):
-    """Run all requested problems and return a pandas result table."""
+    """Run the paper's DLX+ experiment grid and return its result table."""
     data_dir = Path(data_dir).expanduser().resolve()
     output_dir = Path(output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
