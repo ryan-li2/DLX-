@@ -32,6 +32,9 @@ Data/
     Pairs_<instance>_<users>_sample<sample>.json
 ```
 
+See [DATA_APPENDIX.md](DATA_APPENDIX.md) for the complete experimental design,
+file schemas, and problem-identification conventions.
+
 ## Build
 
 Build the standalone DLX+ solver:
